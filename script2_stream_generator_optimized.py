@@ -39,6 +39,13 @@ with open(OUTPUT_FILE_NAME, "wb") as f:
     f.write(all_data)
 
 if len(all_data) < ORDER + 1:
+
+def _pack_context(data_view, start, order):
+    """Pack `order` bytes starting at `start` into an integer."""
+    result = 0
+    for j in range(order):
+        result = (result << 8) | data_view[start + j]
+    return result
     raise RuntimeError("Not enough data")
 
 model = defaultdict(list)
