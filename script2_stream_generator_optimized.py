@@ -24,6 +24,7 @@ from collections import defaultdict
 PTI_BIN_DIRECTORY = "PTIbin"
 OUTPUT_FILE_NAME = "universal_lib.bin"
 NEW_DATA_SIZE = 10 * 1024 * 1024
+ORDER = 4  # Markov model order (number of bytes in context)
 
 all_data = bytearray()
 with os.scandir(PTI_BIN_DIRECTORY) as it:
@@ -37,12 +38,12 @@ print(f"Original PTIbin total: {len(all_data)} bytes")
 with open(OUTPUT_FILE_NAME, "wb") as f:
     f.write(all_data)
 
-if len(all_data) < 5:
+if len(all_data) < ORDER + 1:
     raise RuntimeError("Not enough data")
 
 model = defaultdict(list)
 data_view = memoryview(all_data)
-max_pos = len(all_data) - 4
+max_pos = len(all_data) - ORDER
 
 for i in range(max_pos):
     ctx = (data_view[i] << 24) | (data_view[i+1] << 16) | (data_view[i+2] << 8) | data_view[i+3]
