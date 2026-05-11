@@ -19,12 +19,14 @@ Usage:
 
 import os
 import struct
+import random
 from collections import defaultdict
 
 PTI_BIN_DIRECTORY = "PTIbin"
 OUTPUT_FILE_NAME = "universal_lib.bin"
 NEW_DATA_SIZE = 10 * 1024 * 1024
 ORDER = 4  # Markov model order (number of bytes in context)
+FALLBACK_MODE = "cycle"  # Options: "cycle", "random", "zero"
 
 all_data = bytearray()
 with os.scandir(PTI_BIN_DIRECTORY) as it:
