@@ -1,4 +1,22 @@
-# script2_stream_generator_optimized.py
+#!/usr/bin/env python3
+"""
+script2_stream_generator_optimized.py
+
+Generates a deterministic stream using an order-4 Markov model trained on PTIbin files.
+
+The script:
+1. Reads all .bin files from PTIbin directory
+2. Builds a Markov model mapping 4-byte contexts to next bytes
+3. Generates a deterministic stream by cycling through transitions
+4. Appends generated data to universal_lib.bin
+
+The generation is deterministic because each context cycles through its
+possible next bytes in a fixed order, producing the same output each run.
+
+Usage:
+    python script2_stream_generator_optimized.py
+"""
+
 import os
 import struct
 from collections import defaultdict
