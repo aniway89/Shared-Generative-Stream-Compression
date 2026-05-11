@@ -42,9 +42,8 @@ if len(all_data) < ORDER + 1:
 
 def _pack_context(data_view, start, order):
     """Pack `order` bytes starting at `start` into an integer."""
-    result = 0
-    for j in range(order):
-        result = (result << 8) | data_view[start + j]
+        byte_slice = bytes(data_view[start:start + order])
+    result = int.from_bytes(byte_slice, "little")
     return result
     raise RuntimeError("Not enough data")
 
