@@ -8,10 +8,11 @@ OUTPUT_FILE_NAME = "universal_lib.bin"
 NEW_DATA_SIZE = 10 * 1024 * 1024
 
 all_data = bytearray()
-for bin_file in sorted(os.listdir(PTI_BIN_DIRECTORY)):
-    if bin_file.endswith(".bin"):
-        with open(os.path.join(PTI_BIN_DIRECTORY, bin_file), "rb") as f:
-            all_data.extend(f.read())
+with os.scandir(PTI_BIN_DIRECTORY) as it:
+    for entry in sorted(it, key=lambda e: e.name):
+        if entry.name.endswith(".bin") and entry.is_file():
+            with open(entry.path, "rb") as f:
+                all_data.extend(f.read())
 
 print(f"Original PTIbin total: {len(all_data)} bytes")
 
