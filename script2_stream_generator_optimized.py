@@ -3,19 +3,19 @@ import os
 import struct
 from collections import defaultdict
 
-PTIbin_DIR = "PTIbin"
-OUTPUT_STREAM = "universal_lib.bin"
+PTI_BIN_DIRECTORY = "PTIbin"
+OUTPUT_FILE_NAME = "universal_lib.bin"
 NEW_DATA_SIZE = 10 * 1024 * 1024
 
 all_data = bytearray()
-for bin_file in sorted(os.listdir(PTIbin_DIR)):
+for bin_file in sorted(os.listdir(PTI_BIN_DIRECTORY)):
     if bin_file.endswith(".bin"):
-        with open(os.path.join(PTIbin_DIR, bin_file), "rb") as f:
+        with open(os.path.join(PTI_BIN_DIRECTORY, bin_file), "rb") as f:
             all_data.extend(f.read())
 
 print(f"Original PTIbin total: {len(all_data)} bytes")
 
-with open(OUTPUT_STREAM, "wb") as f:
+with open(OUTPUT_FILE_NAME, "wb") as f:
     f.write(all_data)
 
 if len(all_data) < 5:
@@ -49,7 +49,7 @@ while len(generated) < NEW_DATA_SIZE:
 
 print(f"Generated {len(generated)} bytes")
 
-with open(OUTPUT_STREAM, "ab") as f:
+with open(OUTPUT_FILE_NAME, "ab") as f:
     f.write(generated)
 
 print(f"Final size: {len(all_data) + len(generated)} bytes")
