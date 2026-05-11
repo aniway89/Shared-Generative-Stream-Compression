@@ -44,6 +44,8 @@ if len(all_data) < ORDER + 1:
 model = defaultdict(list)
 data_view = memoryview(all_data)
 max_pos = len(all_data) - ORDER
+if max_pos <= 0:
+    raise RuntimeError(f"Data too short: need at least {ORDER+1} bytes, got {len(all_data)}")
 
 for i in range(max_pos):
     ctx = (data_view[i] << 24) | (data_view[i+1] << 16) | (data_view[i+2] << 8) | data_view[i+3]
