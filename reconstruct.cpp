@@ -8,6 +8,7 @@
 #include <fstream>
 #include <vector>
 #include <opencv2/opencv.hpp>
+#include "logger.h"
 
 constexpr int TILE_SIZE = 4;
 
@@ -48,6 +49,9 @@ void load_stream() {
 
 int main() {
 
+    BenchmarkTimer timer;
+    timer.tic();
+
     load_stream();
 
     std::ifstream in("MATCH/image.map", std::ios::binary);
@@ -87,6 +91,30 @@ int main() {
     }
 
     cv::imwrite("OUT/reconstructed.png", output);
+
+    double elapsed = timer.toc();
+
+    uint64_t recon_size =
+        file_size_bytes("OUT/reconstructed.png");
+
+    std::cout << "\n========== RECONSTRUCTION ==========\n";
+
+    print_stat(
+        "Reconstructed File Size",
+        mb(recon_size),
+        "MB"
+    );
+
+    print_stat(
+        "Reconstruction Time",
+        elapsed,
+        "sec"
+    );
+
+    append_log("========== RECONSTRUCTION ==========");
+    append_log("Reconstructed MB: " + std::to_string(mb(recon_size)));
+    append_log("Reconstruction Time Sec: " + std::to_string(elapsed));
+    append_log("");
 
     std::cout << "Reconstruction Complete\n";
 

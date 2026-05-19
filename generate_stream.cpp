@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <opencv2/opencv.hpp>
 #include "xxhash.h"
+#include "logger.h"
 
 namespace fs = std::filesystem;
 
@@ -136,12 +137,45 @@ int main() {
 
     fs::create_directory("STREAM");
 
+    BenchmarkTimer timer;
+    timer.tic();
+
     for (auto& p : fs::directory_iterator("IMG")) {
         process_image(p.path().string());
     }
 
     save_stream();
     save_index();
+
+    double elapsed = timer.toc();
+
+    uint64_t stream_size =
+        file_size_bytes("STREAM/tiles.bin");
+
+    std::cout << "\n========== STREAM GENERATION ==========\n";
+
+    print_stat(
+        "Generated Tile Count",
+        stream_tiles.size()
+    );
+
+    print_stat(
+        "Stream Size",
+        mb(stream_size),
+        "MB"
+    );
+
+    print_stat(
+        "Generation Time",
+        elapsed,
+        "sec"
+    );
+
+    append_log("========== STREAM GENERATION ==========");
+    append_log("Tile Count: " + std::to_string(stream_tiles.size()));
+    append_log("Stream Size MB: " + std::to_string(mb(stream_size)));
+    append_log("Generation Time Sec: " + std::to_string(elapsed));
+    append_log("");
 
     std::cout << "Tiles Stored: " << stream_tiles.size() << "\n";
 
