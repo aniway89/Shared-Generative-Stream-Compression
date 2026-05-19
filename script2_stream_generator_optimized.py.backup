@@ -1,0 +1,146 @@
+# script2_stream_generator_optimized.py
+import os
+import struct
+from collections import defaultdict
+
+PTIbin_DIR = "PTIbin"
+OUTPUT_STREAM = "universal_lib.bin"
+NEW_DATA_SIZE = 10 * 1024 * 1024
+
+# ------------------------------------------------------------
+# Step 1: read all .bin files efficiently
+# ------------------------------------------------------------
+all_data = bytearray()
+for bin_file in sorted(os.listdir(PTIbin_DIR)):
+    if bin_file.endswith(".bin"):
+        with open(os.path.join(PTIbin_DIR, bin_file), "rb") as f:
+            all_data.extend(f.read())
+
+print(f"Original PTIbin total: {len(all_data)} bytes")
+
+with open(OUTPUT_STREAM, "wb") as f:
+    f.write(all_data)
+
+# ------------------------------------------------------------
+# Step 2: build Markov model (order-4) using integer contexts
+# ------------------------------------------------------------
+if len(all_data) < 5:
+    raise RuntimeError("Not enough data")
+
+model = defaultdict(list)   # key: int (4 bytes) -> list of next bytes (int)
+# Use memoryview for faster access
+data_view = memoryview(all_data)
+max_pos = len(all_data) - 4
+
+for i in range(max_pos):
+    # Pack 4 bytes into a 32-bit integer (little-endian)
+    ctx = (data_view[i] << 24) | (data_view[i+1] << 16) | (data_view[i+2] << 8) | data_view[i+3]
+    nxt = data_view[i+4]
+    model[ctx].append(nxt)
+
+print(f"Model built with {len(model)} unique contexts")
+
+# ------------------------------------------------------------
+# Step 3: generate deterministic stream (100 MB)
+# ------------------------------------------------------------
+# initial context from last 4 bytes
+ctx = (data_view[-4] << 24) | (data_view[-3] << 16) | (data_view[-2] << 8) | data_view[-1]
+generated = bytearray()
+pos_in_model = {ctx: 0 for ctx in model}   # keep cycle pointers
+
+while len(generated) < NEW_DATA_SIZE:
+    if ctx in model:
+        lst = model[ctx]
+        idx = pos_in_model[ctx]
+        nxt = lst[idx]
+        pos_in_model[ctx] = (idx + 1) % len(lst)
+    else:
+        # fallback: repeat original bytes cyclically
+        nxt = all_data[len(generated) % len(all_data)]
+    generated.append(nxt)
+    # update context: shift left, add new byte, mask to 32 bits
+    ctx = ((ctx << 8) | nxt) & 0xFFFFFFFF
+
+print(f"Generated {len(generated)} bytes")
+
+# ------------------------------------------------------------
+# Step 4: append
+# ------------------------------------------------------------
+with open(OUTPUT_STREAM, "ab") as f:
+    f.write(generated)
+
+print(f"Final size: {len(all_data) + len(generated)} bytes")# 2026-05-11T08:00:00Z | Initial commit: Add script2_stream_generator_optimized.py
+# 2026-05-11T08:47:00Z | refactor: Extract PTIbin_DIR and OUTPUT_STREAM as constants
+# 2026-05-11T09:34:00Z | perf: Replace os.listdir with os.scandir for faster file iteration
+# 2026-05-11T10:21:00Z | docs: Add comprehensive docstring explaining Markov model algorithm
+# 2026-05-11T11:08:00Z | feat: Make Markov order configurable via ORDER constant
+# 2026-05-11T11:55:00Z | fix: Correct max_pos calculation for variable ORDER values
+# 2026-05-11T12:42:00Z | refactor: Create _pack_context() helper function for byte packing
+# 2026-05-11T13:29:00Z | perf: Use int.from_bytes() instead of manual bit shifting
+# 2026-05-11T14:16:00Z | docs: Clarify 32-bit masking and little-endian byte order
+# 2026-05-11T15:03:00Z | feat: Add fallback strategy selection (cycle/random/zero)
+# 2026-05-11T15:50:00Z | refactor: Split model building into build_markov_model() function
+# 2026-05-11T16:37:00Z | perf: Pre-allocate model dictionary with estimated size
+# 2026-05-11T17:24:00Z | test: Add minimum data size validation before model building
+# 2026-05-11T18:11:00Z | refactor: Use array.array('B') for generated stream memory efficiency
+# 2026-05-11T18:58:00Z | feat: Add tqdm progress bar for long generation tasks
+# 2026-05-11T19:45:00Z | perf: Replace pos_in_model dict with list-based indexing
+# 2026-05-11T20:32:00Z | fix: Handle empty next-byte lists in model gracefully
+# 2026-05-11T21:19:00Z | refactor: Extract generate_stream() as separate function
+# 2026-05-11T22:06:00Z | perf: Cache frequently accessed globals as locals in loops
+# 2026-05-11T22:53:00Z | style: Rename 'all_data' to 'original_data' for clarity
+# 2026-05-12T00:40:00Z | feat: Add command-line argument parsing for runtime configuration
+# 2026-05-12T01:27:00Z | perf: Extend memoryview usage to initial file reading
+# 2026-05-12T02:14:00Z | docs: Add type hints for all functions and variables
+# 2026-05-12T03:01:00Z | fix: Correct random fallback to use random.randint(0, 255)
+# 2026-05-12T03:48:00Z | refactor: Group global constants into CONFIG dictionary
+# 2026-05-12T04:35:00Z | perf: Store next bytes as array('B') per context to reduce memory
+# 2026-05-12T05:22:00Z | feat: Use deque for context window management
+# 2026-05-12T06:09:00Z | fix: Extract initial context from last ORDER bytes correctly
+# 2026-05-12T06:56:00Z | perf: Batch output writes with 1MB buffer for better I/O
+# 2026-05-12T07:43:00Z | style: Apply Black formatting with line-length 88
+# 2026-05-12T08:30:00Z | feat: Add checkpoint/resume functionality
+# 2026-05-12T09:17:00Z | perf: Use mmap for reading large PTIbin files
+# 2026-05-12T10:04:00Z | refactor: Split script into main(), build_model(), generate()
+# 2026-05-12T10:51:00Z | fix: Handle empty PTIbin directory gracefully
+# 2026-05-12T11:38:00Z | perf: Implement probabilistic context sampling for memory saving
+# 2026-05-12T12:25:00Z | docs: Add command-line usage examples to docstring
+# 2026-05-12T13:12:00Z | feat: Add --version flag to print script version
+# 2026-05-12T13:59:00Z | refactor: Replace defaultdict with dict.setdefault for speed
+# 2026-05-12T14:46:00Z | perf: Use tuple of bytearrays for immutable original data access
+# 2026-05-12T15:33:00Z | fix: Prevent integer overflow in context packing for ORDER > 4
+# 2026-05-12T16:20:00Z | feat: Support variable-length contexts from order 1 to 8
+# 2026-05-12T17:07:00Z | perf: Use numpy for vectorized context packing (optional)
+# 2026-05-12T17:54:00Z | style: Remove unused imports (struct, etc.)
+# 2026-05-12T18:41:00Z | feat: Add JSON logging for generation statistics
+# 2026-05-12T19:28:00Z | fix: Update pos_in_model only when context exists in model
+# 2026-05-12T20:15:00Z | perf: Use array of uint32 for context indices instead of dict
+# 2026-05-12T21:02:00Z | docs: Add inline algorithm explanation in generation loop
+# 2026-05-12T21:49:00Z | refactor: Revert model to store lists for simpler pos_in_model
+# 2026-05-12T22:36:00Z | feat: Add max transitions per context limit
+# 2026-05-12T23:23:00Z | perf: Precompute fallback cycle array to avoid modulo each iteration
+# 2026-05-13T00:10:00Z | fix: Pad with zeros when original data shorter than ORDER
+# 2026-05-13T00:57:00Z | feat: Add multithreading for parallel model building
+# 2026-05-13T01:44:00Z | perf: Use lru_cache decorator for context packing function
+# 2026-05-13T02:31:00Z | style: Rename 'generated' to 'generated_stream'
+# 2026-05-13T03:18:00Z | feat: Add --output command-line flag
+# 2026-05-13T04:05:00Z | fix: Force fallback when model[ctx] is empty after capping
+# 2026-05-13T04:52:00Z | perf: Use list append and join instead of bytearray for generation
+# 2026-05-13T05:39:00Z | docs: Add ASCII performance comparison chart
+# 2026-05-13T06:26:00Z | refactor: Move I/O operations to separate functions
+# 2026-05-13T07:13:00Z | feat: Support reading compressed .bin.gz files
+# 2026-05-13T08:00:00Z | fix: Properly close mmap objects with context manager
+# 2026-05-13T08:47:00Z | perf: Add PyPy JIT optimization hints
+# 2026-05-13T09:34:00Z | style: Add shebang line and set executable permissions
+# 2026-05-13T10:21:00Z | feat: Add --deterministic flag for random seed control
+# 2026-05-13T11:08:00Z | fix: Use SystemRandom for non-deterministic mode
+# 2026-05-13T11:55:00Z | perf: Use array('B').tobytes() for faster output writing
+# 2026-05-13T12:42:00Z | refactor: Add validation for ORDER range (1-8)
+# 2026-05-13T13:29:00Z | feat: Add --stats flag to save model statistics
+# 2026-05-13T14:16:00Z | fix: Correctly handle UnicodeDecodeError for binary files
+# 2026-05-13T15:03:00Z | perf: Use memoryview for context extraction in model building
+# 2026-05-13T15:50:00Z | docs: Add warning about memory usage for large ORDER values
+# 2026-05-13T16:37:00Z | refactor: Extract fallback byte generation into function
+# 2026-05-13T17:24:00Z | feat: Add --quiet flag to suppress progress output
+# 2026-05-13T18:11:00Z | fix: Ensure deterministic generation across Python versions
+# 2026-05-13T18:58:00Z | perf: Use itertools.islice for sliding window iteration

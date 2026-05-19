@@ -1,0 +1,41 @@
+# Large binary files (>2 MB)
+*.bin
+
+
+# Compiled executables
+*.exe
+*.o
+*.so
+*.dylib
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.Python
+env/
+venv/
+
+# Build outputs
+build/
+dist/
+
+# Large image/data files
+*.png
+*.jpg
+*.jpeg
+*.bin
+reconstructed_image.png
+comImgLoc.txt
