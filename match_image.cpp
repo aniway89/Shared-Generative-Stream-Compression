@@ -1,7 +1,15 @@
 // ============================================================
 // FILE: match_image.cpp
-// PURPOSE:
-// Find longest exact byte sequence inside universal stream
+// UPDATED ARCHITECTURE
+//
+// STAGE 1:
+// Try FULL IMAGE MATCH
+//
+// STAGE 2:
+// If failed -> segmented longest raw-data matching
+//
+// OUTPUT:
+// compressed coordinate map
 // ============================================================
 
 #include <iostream>
@@ -14,19 +22,35 @@
 
 namespace fs = std::filesystem;
 
-struct StreamMatch {
+// ============================================================
+// STRUCTS
+// ============================================================
+
+struct SegmentMatch {
 
     uint64_t stream_offset;
+
+    uint32_t target_offset;
+
     uint32_t length;
+};
+
+struct FileHeader {
 
     uint32_t width;
     uint32_t height;
+
+    uint32_t segment_count;
 };
+
+// ============================================================
+// GLOBAL STREAM
+// ============================================================
 
 std::vector<uint8_t> stream_data;
 
 // ============================================================
-// LOAD UNIVERSAL STREAM
+// LOAD STREAM
 // ============================================================
 
 void load_stream() {
@@ -58,7 +82,7 @@ void load_stream() {
 }
 
 // ============================================================
-// IMAGE → RAW BYTE ARRAY
+// IMAGE → BYTE ARRAY
 // ============================================================
 
 std::vector<uint8_t> image_to_bytes(
@@ -75,7 +99,7 @@ std::vector<uint8_t> image_to_bytes(
     if (img.empty()) {
 
         std::cout
-            << "Failed loading: "
+            << "FAILED: "
             << path
             << "\n";
 
@@ -106,19 +130,13 @@ std::vector<uint8_t> image_to_bytes(
 }
 
 // ============================================================
-// BRUTE FORCE STREAM SEARCH
+// FULL IMAGE MATCH
 // ============================================================
 
-bool find_exact_match(
+bool full_match_search(
     const std::vector<uint8_t>& target,
     uint64_t& found_offset
 ) {
-
-    if (
-        target.empty() ||
-        stream_data.empty()
-    )
-        return false;
 
     size_t target_size =
         target.size();
@@ -161,6 +179,137 @@ bool find_exact_match(
 }
 
 // ============================================================
+// LONGEST SEGMENT MATCH
+// ============================================================
+
+SegmentMatch longest_match_from_position(
+    const std::vector<uint8_t>& target,
+    uint32_t start
+) {
+
+    SegmentMatch best;
+
+    best.length = 0;
+
+    size_t stream_size =
+        stream_data.size();
+
+    size_t target_size =
+        target.size();
+
+    for (
+        size_t s = 0;
+        s < stream_size;
+        s++
+    ) {
+
+        uint32_t len = 0;
+
+        while (
+
+            start + len < target_size &&
+            s + len < stream_size &&
+
+            target[start + len]
+            ==
+            stream_data[s + len]
+
+        ) {
+
+            len++;
+        }
+
+        if (len > best.length) {
+
+            best.length = len;
+
+            best.stream_offset = s;
+
+            best.target_offset = start;
+        }
+    }
+
+    return best;
+}
+
+// ============================================================
+// SEGMENTED MATCHING
+// ============================================================
+
+std::vector<SegmentMatch> segmented_match(
+    const std::vector<uint8_t>& target
+) {
+
+    std::vector<SegmentMatch> matches;
+
+    uint32_t pos = 0;
+
+    while (pos < target.size()) {
+
+        SegmentMatch best =
+            longest_match_from_position(
+                target,
+                pos
+            );
+
+        // no usable match
+        if (best.length < 12) {
+
+            pos++;
+            continue;
+        }
+
+        matches.push_back(best);
+
+        pos += best.length;
+    }
+
+    return matches;
+}
+
+// ============================================================
+// SAVE MATCH FILE
+// ============================================================
+
+void save_match_file(
+
+    const std::string& out_path,
+
+    uint32_t width,
+    uint32_t height,
+
+    const std::vector<SegmentMatch>& matches
+) {
+
+    FileHeader header;
+
+    header.width = width;
+    header.height = height;
+
+    header.segment_count =
+        matches.size();
+
+    std::ofstream out(
+        out_path,
+        std::ios::binary
+    );
+
+    out.write(
+        (char*)&header,
+        sizeof(header)
+    );
+
+    out.write(
+        (char*)matches.data(),
+        matches.size()
+        *
+        sizeof(SegmentMatch)
+    );
+
+    out.close();
+}
+
+// ============================================================
 // PROCESS IMAGE
 // ============================================================
 
@@ -182,41 +331,6 @@ void process_image(
             height
         );
 
-    uint64_t found_offset = 0;
-
-    bool found =
-        find_exact_match(
-            target,
-            found_offset
-        );
-
-    if (!found) {
-
-        std::cout
-            << "\nNO MATCH FOUND\n";
-
-        append_log(
-            "NO MATCH FOUND: " +
-            path
-        );
-
-        return;
-    }
-
-    StreamMatch match;
-
-    match.stream_offset =
-        found_offset;
-
-    match.length =
-        target.size();
-
-    match.width =
-        width;
-
-    match.height =
-        height;
-
     std::string name =
         fs::path(path)
         .stem()
@@ -227,17 +341,68 @@ void process_image(
         name +
         ".bin";
 
-    std::ofstream out(
+    // ========================================================
+    // TRY FULL MATCH FIRST
+    // ========================================================
+
+    uint64_t full_offset = 0;
+
+    bool full_found =
+        full_match_search(
+            target,
+            full_offset
+        );
+
+    std::vector<SegmentMatch> matches;
+
+    if (full_found) {
+
+        std::cout
+            << "\nFULL IMAGE MATCH FOUND\n";
+
+        SegmentMatch m;
+
+        m.stream_offset =
+            full_offset;
+
+        m.target_offset = 0;
+
+        m.length =
+            target.size();
+
+        matches.push_back(m);
+    }
+
+    else {
+
+        std::cout
+            << "\nFULL MATCH FAILED\n";
+
+        std::cout
+            << "STARTING SEGMENT SEARCH...\n";
+
+        matches =
+            segmented_match(target);
+
+        std::cout
+            << "Segments Found: "
+            << matches.size()
+            << "\n";
+    }
+
+    // ========================================================
+    // SAVE
+    // ========================================================
+
+    save_match_file(
+
         out_path,
-        std::ios::binary
-    );
 
-    out.write(
-        (char*)&match,
-        sizeof(match)
-    );
+        width,
+        height,
 
-    out.close();
+        matches
+    );
 
     double elapsed =
         timer.toc();
@@ -245,12 +410,16 @@ void process_image(
     uint64_t original_size =
         file_size_bytes(path);
 
-    uint64_t coord_size =
+    uint64_t compressed_size =
         file_size_bytes(out_path);
 
     double ratio =
         (double)original_size /
-        (double)coord_size;
+        (double)compressed_size;
+
+    // ========================================================
+    // TERMINAL OUTPUT
+    // ========================================================
 
     std::cout
         << "\n========== MATCH RESULTS ==========\n";
@@ -261,23 +430,13 @@ void process_image(
     );
 
     print_stat(
-        "Match Found",
-        "YES"
-    );
-
-    print_stat(
-        "Stream Offset",
-        std::to_string(found_offset)
-    );
-
-    print_stat(
         "Original Size",
         human_size(original_size)
     );
 
     print_stat(
-        "Coordinate File Size",
-        human_size(coord_size)
+        "Compressed Map Size",
+        human_size(compressed_size)
     );
 
     print_stat(
@@ -287,10 +446,19 @@ void process_image(
     );
 
     print_stat(
+        "Segment Count",
+        matches.size()
+    );
+
+    print_stat(
         "Matching Time",
         elapsed,
         "sec"
     );
+
+    // ========================================================
+    // LOG FILE
+    // ========================================================
 
     append_log(
         "========== MATCH RESULTS =========="
@@ -301,27 +469,23 @@ void process_image(
     );
 
     append_log(
-        "Match Found: YES"
-    );
-
-    append_log(
-        "Stream Offset: " +
-        std::to_string(found_offset)
-    );
-
-    append_log(
         "Original Size: " +
         human_size(original_size)
     );
 
     append_log(
-        "Coordinate File Size: " +
-        human_size(coord_size)
+        "Compressed Size: " +
+        human_size(compressed_size)
     );
 
     append_log(
         "Compression Ratio: " +
         std::to_string(ratio)
+    );
+
+    append_log(
+        "Segment Count: " +
+        std::to_string(matches.size())
     );
 
     append_log(
