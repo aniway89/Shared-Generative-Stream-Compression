@@ -1,0 +1,107 @@
+========== STREAM GENERATION ==========
+Tile Count: 618000
+Stream Size MB: 28.289795
+Generation Time Sec: 0.713091
+
+========== MATCH RESULTS ==========
+Image: COMP_IMG/PTI2 cp.png
+Original MB: 0.755476
+Coord MB: 0.000004
+Compression Ratio: 198043.500000
+Matching Time Sec: 0.027948
+
+========== STREAM GENERATION ==========
+Tile Count: 618000
+Stream Size MB: 28.289795
+Generation Time Sec: 0.842704
+
+========== MATCH RESULTS ==========
+Image: COMP_IMG/PTI2 cp.png
+Original MB: 0.755476
+Coord MB: 0.000004
+Compression Ratio: 198043.500000
+Matching Time Sec: 0.027920
+
+========== STREAM GENERATION ==========
+Tile Count: 618000
+Stream Size MB: 28.289795
+Generation Time Sec: 4.497483
+
+========== MATCH RESULTS ==========
+Image: COMP_IMG/PTI2.png
+Original MB: 3.437353
+Coord MB: 1.414494
+Compression Ratio: 2.430095
+Matching Time Sec: 0.094767
+
+========== STREAM GENERATION ==========
+Tile Count: 618000
+Stream Size MB: 28.289795
+Generation Time Sec: 0.716402
+
+========== STREAM GENERATION ==========
+Tile Count: 618000
+Stream Size MB: 28.289795
+Generation Time Sec: 0.800024
+
+========== STREAM GENERATION ==========
+Tile Count: 618000
+Stream Size MB: 28.289795
+Generation Time Sec: 0.556446
+
+========== STREAM GENERATION ==========
+Byte Count: 5932864
+Stream Size MB: 5.658020
+Generation Time Sec: 0.081898
+
+========== STREAM GENERATION ==========
+Byte Count: 5932864
+Stream Size MB: 5.658020
+Generation Time Sec: 0.073344
+
+========== STREAM GENERATION ==========
+Byte Count: 5932864
+Stream Size MB: 5.658020
+Generation Time Sec: 0.084948
+
+========== STREAM GENERATION ==========
+Byte Count: 5932864
+Stream Size MB: 5.658020
+Generation Time Sec: 0.100069
+
+========== STREAM GENERATION ==========
+Byte Count: 5932864
+Stream Size MB: 5.658020
+Generation Time Sec: 0.103215
+
+========== MATCH RESULTS ==========
+Image: COMP_IMG/PTI2.png
+Original MB: 3.437353
+Map MB: 0.000023
+Transfer Compression: 150180.250000
+System Compression: 0.607516
+Matched Length: 5932800
+Matching Time Sec: 0.068231
+
+========== RECONSTRUCTION ==========
+Reconstructed MB: 2.537609
+Reconstruction Time Sec: 0.180040
+
+========== STREAM GENERATION ==========
+Byte Count: 5932864
+Stream Size MB: 5.658020
+Generation Time Sec: 0.091675
+
+========== MATCH RESULTS ==========
+Image: COMP_IMG/PTI2.png
+Original MB: 3.437353
+Map MB: 0.000023
+Transfer Compression: 150180.250000
+System Compression: 0.607516
+Matched Length: 5932800
+Matching Time Sec: 0.067171
+
+========== RECONSTRUCTION ==========
+Reconstructed MB: 2.537609
+Reconstruction Time Sec: 0.161694
+

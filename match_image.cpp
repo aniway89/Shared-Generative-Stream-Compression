@@ -1,142 +1,188 @@
 // ============================================================
 // FILE: match_image.cpp
 // PURPOSE:
-// Match COMP_IMG images against stream using hash index
+// Continuous stream subsequence matching
 // ============================================================
 
 #include <iostream>
 #include <vector>
-#include <unordered_map>
 #include <fstream>
 #include <filesystem>
 #include <opencv2/opencv.hpp>
-#include "xxhash.h"
 #include "logger.h"
 
 namespace fs = std::filesystem;
 
-constexpr int TILE_SIZE = 4;
+struct StreamMatch {
 
-struct Tile {
-    uint8_t data[TILE_SIZE * TILE_SIZE * 3];
+    uint64_t stream_offset;
+    uint32_t length;
+
+    uint32_t width;
+    uint32_t height;
 };
 
-struct MatchRect {
-    uint32_t stream_offset;
-    uint16_t x;
-    uint16_t y;
-    uint16_t w;
-    uint16_t h;
-};
+std::vector<uint8_t> stream_data;
 
-std::unordered_map<uint64_t, std::vector<uint32_t>> hash_index;
+void load_stream() {
 
-uint64_t hash_tile(const Tile& t) {
-    return XXH64(t.data, sizeof(t.data), 0);
-}
+    std::ifstream in(
+        "STREAM/stream.bin",
+        std::ios::binary
+    );
 
-void load_index() {
+    in.seekg(0, std::ios::end);
 
-    std::ifstream in("STREAM/hash_index.bin", std::ios::binary);
+    size_t size = in.tellg();
 
-    uint64_t entries;
+    in.seekg(0);
 
-    in.read((char*)&entries, sizeof(entries));
+    stream_data.resize(size);
 
-    for (uint64_t i = 0; i < entries; i++) {
-
-        uint64_t hash;
-        uint32_t count;
-
-        in.read((char*)&hash, sizeof(hash));
-        in.read((char*)&count, sizeof(count));
-
-        std::vector<uint32_t> offsets(count);
-
-        in.read((char*)offsets.data(), count * sizeof(uint32_t));
-
-        hash_index[hash] = offsets;
-    }
+    in.read(
+        (char*)stream_data.data(),
+        size
+    );
 
     in.close();
 }
 
-Tile extract_tile(cv::Mat& img, int x, int y) {
+std::vector<uint8_t> image_to_bytes(cv::Mat& img) {
 
-    Tile t;
-    int idx = 0;
+    std::vector<uint8_t> bytes;
 
-    for (int ty = 0; ty < TILE_SIZE; ty++) {
-        for (int tx = 0; tx < TILE_SIZE; tx++) {
+    bytes.reserve(
+        img.rows * img.cols * 3
+    );
 
-            cv::Vec3b p = img.at<cv::Vec3b>(y + ty, x + tx);
+    for (int y = 0; y < img.rows; y++) {
 
-            t.data[idx++] = p[0];
-            t.data[idx++] = p[1];
-            t.data[idx++] = p[2];
+        for (int x = 0; x < img.cols; x++) {
+
+            cv::Vec3b p =
+                img.at<cv::Vec3b>(y, x);
+
+            bytes.push_back(p[0]);
+            bytes.push_back(p[1]);
+            bytes.push_back(p[2]);
         }
     }
 
-    return t;
+    return bytes;
 }
 
-void process_image(const std::string& path) {
+StreamMatch find_match(
+    const std::vector<uint8_t>& img
+) {
+
+    StreamMatch best = {0,0,0,0};
+
+    size_t stream_size = stream_data.size();
+    size_t img_size = img.size();
+
+    for (size_t s = 0;
+         s + 8 < stream_size;
+         s++) {
+
+        if (
+            *(uint64_t*)&stream_data[s] !=
+            *(uint64_t*)&img[0]
+        )
+            continue;
+
+        size_t matched = 0;
+
+        while (
+            s + matched < stream_size &&
+            matched < img_size &&
+            stream_data[s + matched] ==
+            img[matched]
+        ) {
+            matched++;
+        }
+
+        if (matched > best.length) {
+
+            best.stream_offset = s;
+            best.length = matched;
+        }
+
+        if (matched == img_size)
+            break;
+    }
+
+    return best;
+}
+
+void process_image(
+    const std::string& path
+) {
 
     BenchmarkTimer timer;
+
     timer.tic();
 
     cv::Mat img = cv::imread(path);
 
-    std::vector<MatchRect> matches;
+    if (img.empty()) {
 
-    for (int y = 0; y <= img.rows - TILE_SIZE; y += TILE_SIZE) {
+        std::cout
+            << "Failed: "
+            << path
+            << "\n";
 
-        for (int x = 0; x <= img.cols - TILE_SIZE; x += TILE_SIZE) {
-
-            Tile t = extract_tile(img, x, y);
-
-            uint64_t h = hash_tile(t);
-
-            auto it = hash_index.find(h);
-
-            if (it == hash_index.end())
-                continue;
-
-            MatchRect r;
-
-            r.stream_offset = it->second[0];
-            r.x = x;
-            r.y = y;
-            r.w = TILE_SIZE;
-            r.h = TILE_SIZE;
-
-            matches.push_back(r);
-        }
+        return;
     }
 
-    std::ofstream out("MATCH/image.map", std::ios::binary);
+    std::vector<uint8_t> img_bytes =
+        image_to_bytes(img);
 
-    uint32_t count = matches.size();
+    StreamMatch match =
+        find_match(img_bytes);
 
-    out.write((char*)&count, sizeof(count));
+    match.width = img.cols;
+    match.height = img.rows;
 
-    out.write((char*)matches.data(), count * sizeof(MatchRect));
+    std::string name =
+        fs::path(path).stem().string();
+
+    std::ofstream out(
+        "MATCH/" + name + ".map",
+        std::ios::binary
+    );
+
+    out.write(
+        (char*)&match,
+        sizeof(match)
+    );
 
     out.close();
 
     double elapsed = timer.toc();
 
     uint64_t coord_size =
-        file_size_bytes("MATCH/image.map");
+        file_size_bytes(
+            "MATCH/" + name + ".map"
+        );
 
     uint64_t original_size =
         file_size_bytes(path);
 
-    double ratio =
+    uint64_t stream_size =
+        file_size_bytes(
+            "STREAM/stream.bin"
+        );
+
+    double transfer_ratio =
         (double)original_size /
         (double)coord_size;
 
-    std::cout << "\n========== MATCH RESULTS ==========\n";
+    double total_ratio =
+        (double)original_size /
+        (double)(coord_size + stream_size);
+
+    std::cout
+        << "\n========== MATCH RESULTS ==========\n";
 
     print_stat(
         "Original File Size",
@@ -145,14 +191,20 @@ void process_image(const std::string& path) {
     );
 
     print_stat(
-        "Coordinate File Size",
+        "Map File Size",
         mb(coord_size),
         "MB"
     );
 
     print_stat(
-        "Compression Ratio",
-        ratio,
+        "Transfer Compression",
+        transfer_ratio,
+        "x"
+    );
+
+    print_stat(
+        "System Compression",
+        total_ratio,
         "x"
     );
 
@@ -162,25 +214,85 @@ void process_image(const std::string& path) {
         "sec"
     );
 
-    append_log("========== MATCH RESULTS ==========");
-    append_log("Image: " + path);
-    append_log("Original MB: " + std::to_string(mb(original_size)));
-    append_log("Coord MB: " + std::to_string(mb(coord_size)));
-    append_log("Compression Ratio: " + std::to_string(ratio));
-    append_log("Matching Time Sec: " + std::to_string(elapsed));
+    print_stat(
+        "Matched Length",
+        match.length,
+        "bytes"
+    );
+
+    if (
+        match.length ==
+        img.rows * img.cols * 3
+    ) {
+
+        std::cout
+            << "FULL MATCH FOUND\n";
+    }
+    else {
+
+        std::cout
+            << "PARTIAL MATCH FOUND\n";
+    }
+
+    append_log(
+        "========== MATCH RESULTS =========="
+    );
+
+    append_log(
+        "Image: " + path
+    );
+
+    append_log(
+        "Original MB: " +
+        std::to_string(mb(original_size))
+    );
+
+    append_log(
+        "Map MB: " +
+        std::to_string(mb(coord_size))
+    );
+
+    append_log(
+        "Transfer Compression: " +
+        std::to_string(transfer_ratio)
+    );
+
+    append_log(
+        "System Compression: " +
+        std::to_string(total_ratio)
+    );
+
+    append_log(
+        "Matched Length: " +
+        std::to_string(match.length)
+    );
+
+    append_log(
+        "Matching Time Sec: " +
+        std::to_string(elapsed)
+    );
+
     append_log("");
 
-    std::cout << "Matches: " << matches.size() << "\n";
+    std::cout
+        << "Match Offset: "
+        << match.stream_offset
+        << "\n";
 }
 
 int main() {
 
     fs::create_directory("MATCH");
 
-    load_index();
+    load_stream();
 
-    for (auto& p : fs::directory_iterator("COMP_IMG")) {
-        process_image(p.path().string());
+    for (
+        auto& p :
+        fs::directory_iterator("COMP_IMG")
+    ) {
+        process_image(
+            p.path().string()
+        );
     }
 
     return 0;

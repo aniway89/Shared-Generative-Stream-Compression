@@ -1,103 +1,143 @@
 // ============================================================
 // FILE: reconstruct.cpp
 // PURPOSE:
-// Reconstruct image from stream + coordinate map
+// Reconstruct image from stream
 // ============================================================
 
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <filesystem>
 #include <opencv2/opencv.hpp>
 #include "logger.h"
 
-constexpr int TILE_SIZE = 4;
+namespace fs = std::filesystem;
 
-struct MatchRect {
-    uint32_t stream_offset;
-    uint16_t x;
-    uint16_t y;
-    uint16_t w;
-    uint16_t h;
+struct StreamMatch {
+
+    uint64_t stream_offset;
+    uint32_t length;
+
+    uint32_t width;
+    uint32_t height;
 };
 
-struct Tile {
-    uint8_t data[TILE_SIZE * TILE_SIZE * 3];
-};
-
-std::vector<Tile> stream_tiles;
+std::vector<uint8_t> stream_data;
 
 void load_stream() {
 
-    std::ifstream in("STREAM/tiles.bin", std::ios::binary);
+    std::ifstream in(
+        "STREAM/stream.bin",
+        std::ios::binary
+    );
 
-    while (true) {
+    in.seekg(0, std::ios::end);
 
-        Tile t;
+    size_t size = in.tellg();
 
-        in.read((char*)t.data, sizeof(t.data));
+    in.seekg(0);
 
-        if (!in)
-            break;
+    stream_data.resize(size);
 
-        stream_tiles.push_back(t);
-    }
+    in.read(
+        (char*)stream_data.data(),
+        size
+    );
 
     in.close();
-
-    std::cout << "Loaded Tiles: " << stream_tiles.size() << "\n";
 }
 
-int main() {
+void reconstruct_file(
+    const std::string& map_path
+) {
 
     BenchmarkTimer timer;
+
     timer.tic();
 
-    load_stream();
+    std::ifstream in(
+        map_path,
+        std::ios::binary
+    );
 
-    std::ifstream in("MATCH/image.map", std::ios::binary);
+    StreamMatch match;
 
-    uint32_t count;
-
-    in.read((char*)&count, sizeof(count));
-
-    std::vector<MatchRect> matches(count);
-
-    in.read((char*)matches.data(), count * sizeof(MatchRect));
+    in.read(
+        (char*)&match,
+        sizeof(match)
+    );
 
     in.close();
 
-    int width = 1024;
-    int height = 1024;
+    uint64_t expected =
+        match.width *
+        match.height *
+        3;
 
-    cv::Mat output(height, width, CV_8UC3);
+    if (
+        match.length != expected
+    ) {
 
-    for (const auto& m : matches) {
+        std::cout
+            << "PARTIAL MATCH DETECTED\n";
 
-        Tile& t = stream_tiles[m.stream_offset];
+        std::cout
+            << "Cannot reconstruct exact image\n";
 
-        int idx = 0;
+        return;
+    }
 
-        for (int ty = 0; ty < TILE_SIZE; ty++) {
-            for (int tx = 0; tx < TILE_SIZE; tx++) {
+    std::vector<uint8_t> bytes(
+        stream_data.begin() +
+        match.stream_offset,
 
-                cv::Vec3b& p =
-                    output.at<cv::Vec3b>(m.y + ty, m.x + tx);
+        stream_data.begin() +
+        match.stream_offset +
+        match.length
+    );
 
-                p[0] = t.data[idx++];
-                p[1] = t.data[idx++];
-                p[2] = t.data[idx++];
-            }
+    cv::Mat output(
+        match.height,
+        match.width,
+        CV_8UC3
+    );
+
+    size_t idx = 0;
+
+    for (int y = 0;
+         y < match.height;
+         y++) {
+
+        for (int x = 0;
+             x < match.width;
+             x++) {
+
+            cv::Vec3b& p =
+                output.at<cv::Vec3b>(y, x);
+
+            p[0] = bytes[idx++];
+            p[1] = bytes[idx++];
+            p[2] = bytes[idx++];
         }
     }
 
-    cv::imwrite("OUT/reconstructed.png", output);
+    std::string name =
+        fs::path(map_path).stem().string();
+
+    cv::imwrite(
+        "OUT/" + name + ".png",
+        output
+    );
 
     double elapsed = timer.toc();
 
     uint64_t recon_size =
-        file_size_bytes("OUT/reconstructed.png");
+        file_size_bytes(
+            "OUT/" + name + ".png"
+        );
 
-    std::cout << "\n========== RECONSTRUCTION ==========\n";
+    std::cout
+        << "\n========== RECONSTRUCTION ==========\n";
 
     print_stat(
         "Reconstructed File Size",
@@ -111,12 +151,41 @@ int main() {
         "sec"
     );
 
-    append_log("========== RECONSTRUCTION ==========");
-    append_log("Reconstructed MB: " + std::to_string(mb(recon_size)));
-    append_log("Reconstruction Time Sec: " + std::to_string(elapsed));
+    append_log(
+        "========== RECONSTRUCTION =========="
+    );
+
+    append_log(
+        "Reconstructed MB: " +
+        std::to_string(mb(recon_size))
+    );
+
+    append_log(
+        "Reconstruction Time Sec: " +
+        std::to_string(elapsed)
+    );
+
     append_log("");
 
-    std::cout << "Reconstruction Complete\n";
+    std::cout
+        << "Reconstruction Complete\n";
+}
+
+int main() {
+
+    fs::create_directory("OUT");
+
+    load_stream();
+
+    for (
+        auto& p :
+        fs::directory_iterator("MATCH")
+    ) {
+
+        reconstruct_file(
+            p.path().string()
+        );
+    }
 
     return 0;
 }
