@@ -1,7 +1,5 @@
 // ============================================================
 // FILE: reconstruct.cpp
-// PURPOSE:
-// Reconstruct image from stream
 // ============================================================
 
 #include <iostream>
@@ -9,6 +7,7 @@
 #include <vector>
 #include <filesystem>
 #include <opencv2/opencv.hpp>
+
 #include "logger.h"
 
 namespace fs = std::filesystem;
@@ -47,6 +46,45 @@ void load_stream() {
     in.close();
 }
 
+bool verify_pixels(
+    const std::string& original_path,
+    const std::string& reconstructed_path
+) {
+
+    cv::Mat original =
+        cv::imread(original_path);
+
+    cv::Mat reconstructed =
+        cv::imread(reconstructed_path);
+
+    if (
+        original.empty() ||
+        reconstructed.empty()
+    )
+        return false;
+
+    if (
+        original.rows != reconstructed.rows ||
+        original.cols != reconstructed.cols
+    )
+        return false;
+
+    cv::Mat diff;
+
+    cv::absdiff(
+        original,
+        reconstructed,
+        diff
+    );
+
+    int non_zero =
+        cv::countNonZero(
+            diff.reshape(1)
+        );
+
+    return non_zero == 0;
+}
+
 void reconstruct_file(
     const std::string& map_path
 ) {
@@ -81,13 +119,11 @@ void reconstruct_file(
         std::cout
             << "PARTIAL MATCH DETECTED\n";
 
-        std::cout
-            << "Cannot reconstruct exact image\n";
-
         return;
     }
 
     std::vector<uint8_t> bytes(
+
         stream_data.begin() +
         match.stream_offset,
 
@@ -104,13 +140,17 @@ void reconstruct_file(
 
     size_t idx = 0;
 
-    for (int y = 0;
-         y < match.height;
-         y++) {
+    for (
+        int y = 0;
+        y < match.height;
+        y++
+    ) {
 
-        for (int x = 0;
-             x < match.width;
-             x++) {
+        for (
+            int x = 0;
+            x < match.width;
+            x++
+        ) {
 
             cv::Vec3b& p =
                 output.at<cv::Vec3b>(y, x);
@@ -122,27 +162,41 @@ void reconstruct_file(
     }
 
     std::string name =
-        fs::path(map_path).stem().string();
+        fs::path(map_path)
+        .stem()
+        .string();
+
+    std::string out_path =
+        "OUT/" +
+        name +
+        ".png";
 
     cv::imwrite(
-        "OUT/" + name + ".png",
+        out_path,
         output
     );
 
-    double elapsed = timer.toc();
+    bool verified =
+        verify_pixels(
+            "COMP_IMG/" +
+            name +
+            ".png",
+
+            out_path
+        );
+
+    double elapsed =
+        timer.toc();
 
     uint64_t recon_size =
-        file_size_bytes(
-            "OUT/" + name + ".png"
-        );
+        file_size_bytes(out_path);
 
     std::cout
         << "\n========== RECONSTRUCTION ==========\n";
 
     print_stat(
         "Reconstructed File Size",
-        mb(recon_size),
-        "MB"
+        human_size(recon_size)
     );
 
     print_stat(
@@ -151,18 +205,38 @@ void reconstruct_file(
         "sec"
     );
 
+    print_stat(
+        "Verification Status",
+        verified
+        ? "PIXEL PERFECT MATCH"
+        : "FAILED"
+    );
+
     append_log(
         "========== RECONSTRUCTION =========="
     );
 
     append_log(
-        "Reconstructed MB: " +
-        std::to_string(mb(recon_size))
+        "Reconstructed File Size: " +
+        human_size(recon_size)
     );
 
     append_log(
-        "Reconstruction Time Sec: " +
-        std::to_string(elapsed)
+        "Reconstruction Time: " +
+        std::to_string(elapsed) +
+        " sec"
+    );
+
+    append_log(
+        std::string(
+            "Verification: "
+        ) +
+
+        (
+            verified
+            ? "PIXEL PERFECT MATCH"
+            : "FAILED"
+        )
     );
 
     append_log("");

@@ -1,7 +1,5 @@
 // ============================================================
 // FILE: logger.h
-// PURPOSE:
-// Accurate benchmarking + human-readable sizes
 // ============================================================
 
 #pragma once
@@ -26,6 +24,7 @@ public:
     std::chrono::high_resolution_clock::time_point start;
 
     void tic() {
+
         start =
             std::chrono::high_resolution_clock::now();
     }
@@ -41,6 +40,32 @@ public:
         return diff.count();
     }
 };
+
+// ============================================================
+// ATTEMPT COUNTER
+// ============================================================
+
+inline int get_attempt_number() {
+
+    std::ifstream in("attempt.counter");
+
+    int n = 0;
+
+    if (in.good())
+        in >> n;
+
+    in.close();
+
+    n++;
+
+    std::ofstream out("attempt.counter");
+
+    out << n;
+
+    out.close();
+
+    return n;
+}
 
 // ============================================================
 // FILE SIZE
@@ -60,7 +85,9 @@ inline uint64_t file_size_bytes(
 // HUMAN READABLE SIZE
 // ============================================================
 
-inline std::string human_size(uint64_t bytes) {
+inline std::string human_size(
+    uint64_t bytes
+) {
 
     const double KB = 1024.0;
     const double MB = KB * 1024.0;
@@ -68,7 +95,8 @@ inline std::string human_size(uint64_t bytes) {
 
     std::ostringstream ss;
 
-    ss << std::fixed << std::setprecision(2);
+    ss << std::fixed
+       << std::setprecision(2);
 
     if (bytes < 1024) {
 
@@ -76,52 +104,18 @@ inline std::string human_size(uint64_t bytes) {
     }
     else if (bytes < MB) {
 
-        ss << (bytes / KB) << " KB";
+        ss << (bytes / KB)
+           << " KB";
     }
     else if (bytes < GB) {
 
-        ss << (bytes / MB) << " MB";
+        ss << (bytes / MB)
+           << " MB";
     }
     else {
 
-        ss << (bytes / GB) << " GB";
-    }
-
-    return ss.str();
-}
-
-// ============================================================
-// HUMAN READABLE COUNT
-// ============================================================
-
-inline std::string human_count(uint64_t n) {
-
-    std::ostringstream ss;
-
-    if (n >= 1000000000ULL) {
-
-        ss << std::fixed
-           << std::setprecision(2)
-           << (n / 1000000000.0)
-           << " Billion";
-    }
-    else if (n >= 1000000ULL) {
-
-        ss << std::fixed
-           << std::setprecision(2)
-           << (n / 1000000.0)
-           << " Million";
-    }
-    else if (n >= 1000ULL) {
-
-        ss << std::fixed
-           << std::setprecision(2)
-           << (n / 1000.0)
-           << " Thousand";
-    }
-    else {
-
-        ss << n;
+        ss << (bytes / GB)
+           << " GB";
     }
 
     return ss.str();
