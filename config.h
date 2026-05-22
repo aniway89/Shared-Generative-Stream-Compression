@@ -10,7 +10,7 @@
 
 // false = exact-only deterministic stream
 // true  = exact + generated pixel variants
-constexpr bool ENABLE_GENERATIVE_MODE = false;
+constexpr bool ENABLE_GENERATIVE_MODE = true;
 
 // ============================================================
 // GENERATION PARAMETERS
