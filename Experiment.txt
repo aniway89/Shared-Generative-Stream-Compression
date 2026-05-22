@@ -1,7 +1,7 @@
 Using the PTI1 and PTI1 cp as the starting images for test
 
-Info                              |  PTI                                 | PTI cp
+Info                              |  PTI                                 | PTI cp (croped part from the PTI)
 
-Image no                          |  1
 Dimentions                        |  1200 X 874                          | 200 x 200            
 Size                              |  247KB                               | 15.5KB
+

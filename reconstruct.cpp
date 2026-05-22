@@ -12,14 +12,24 @@
 
 namespace fs = std::filesystem;
 
-struct StreamMatch {
+
+struct SegmentMatch {
 
     uint64_t stream_offset;
+
+    uint32_t target_offset;
+
     uint32_t length;
+};
+
+struct FileHeader {
 
     uint32_t width;
     uint32_t height;
+
+    uint32_t segment_count;
 };
+
 
 std::vector<uint8_t> stream_data;
 
@@ -85,6 +95,7 @@ bool verify_pixels(
     return non_zero == 0;
 }
 
+
 void reconstruct_file(
     const std::string& map_path
 ) {
@@ -98,43 +109,95 @@ void reconstruct_file(
         std::ios::binary
     );
 
-    StreamMatch match;
-
-    in.read(
-        (char*)&match,
-        sizeof(match)
-    );
-
-    in.close();
-
-    uint64_t expected =
-        match.width *
-        match.height *
-        3;
-
-    if (
-        match.length != expected
-    ) {
+    if (!in.is_open()) {
 
         std::cout
-            << "PARTIAL MATCH DETECTED\n";
+            << "Failed to open map file\n";
 
         return;
     }
 
-    std::vector<uint8_t> bytes(
+    // ========================================================
+    // READ HEADER
+    // ========================================================
 
-        stream_data.begin() +
-        match.stream_offset,
+    FileHeader header;
 
-        stream_data.begin() +
-        match.stream_offset +
-        match.length
+    in.read(
+        (char*)&header,
+        sizeof(header)
     );
 
+    // ========================================================
+    // READ SEGMENTS
+    // ========================================================
+
+    std::vector<SegmentMatch> matches(
+        header.segment_count
+    );
+
+    in.read(
+        (char*)matches.data(),
+        sizeof(SegmentMatch)
+        *
+        header.segment_count
+    );
+
+    in.close();
+
+    // ========================================================
+    // CREATE OUTPUT BYTE BUFFER
+    // ========================================================
+
+    uint64_t total_bytes =
+        (uint64_t)header.width
+        *
+        header.height
+        *
+        3;
+
+    std::vector<uint8_t> reconstructed(
+        total_bytes,
+        0
+    );
+
+    // ========================================================
+    // REBUILD IMAGE
+    // ========================================================
+
+    for (const auto& m : matches) {
+
+        if (
+            m.stream_offset + m.length
+            > stream_data.size()
+        )
+            continue;
+
+        if (
+            m.target_offset + m.length
+            > reconstructed.size()
+        )
+            continue;
+
+        memcpy(
+
+            reconstructed.data()
+            + m.target_offset,
+
+            stream_data.data()
+            + m.stream_offset,
+
+            m.length
+        );
+    }
+
+    // ========================================================
+    // BYTE ARRAY → IMAGE
+    // ========================================================
+
     cv::Mat output(
-        match.height,
-        match.width,
+        header.height,
+        header.width,
         CV_8UC3
     );
 
@@ -142,24 +205,28 @@ void reconstruct_file(
 
     for (
         int y = 0;
-        y < match.height;
+        y < output.rows;
         y++
     ) {
 
         for (
             int x = 0;
-            x < match.width;
+            x < output.cols;
             x++
         ) {
 
             cv::Vec3b& p =
                 output.at<cv::Vec3b>(y, x);
 
-            p[0] = bytes[idx++];
-            p[1] = bytes[idx++];
-            p[2] = bytes[idx++];
+            p[0] = reconstructed[idx++];
+            p[1] = reconstructed[idx++];
+            p[2] = reconstructed[idx++];
         }
     }
+
+    // ========================================================
+    // SAVE OUTPUT
+    // ========================================================
 
     std::string name =
         fs::path(map_path)
@@ -176,27 +243,15 @@ void reconstruct_file(
         output
     );
 
-    bool verified =
-        verify_pixels(
-            "COMP_IMG/" +
-            name +
-            ".png",
-
-            out_path
-        );
-
     double elapsed =
         timer.toc();
-
-    uint64_t recon_size =
-        file_size_bytes(out_path);
 
     std::cout
         << "\n========== RECONSTRUCTION ==========\n";
 
     print_stat(
-        "Reconstructed File Size",
-        human_size(recon_size)
+        "Segments Used",
+        matches.size()
     );
 
     print_stat(
@@ -204,42 +259,6 @@ void reconstruct_file(
         elapsed,
         "sec"
     );
-
-    print_stat(
-        "Verification Status",
-        verified
-        ? "PIXEL PERFECT MATCH"
-        : "FAILED"
-    );
-
-    append_log(
-        "========== RECONSTRUCTION =========="
-    );
-
-    append_log(
-        "Reconstructed File Size: " +
-        human_size(recon_size)
-    );
-
-    append_log(
-        "Reconstruction Time: " +
-        std::to_string(elapsed) +
-        " sec"
-    );
-
-    append_log(
-        std::string(
-            "Verification: "
-        ) +
-
-        (
-            verified
-            ? "PIXEL PERFECT MATCH"
-            : "FAILED"
-        )
-    );
-
-    append_log("");
 
     std::cout
         << "Reconstruction Complete\n";

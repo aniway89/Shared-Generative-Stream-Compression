@@ -4,10 +4,10 @@
 int main() {
 
     cv::Mat original =
-        cv::imread("IMG/PTI2.png");
+        cv::imread("COMP_IMG/PTI1 CP.jpg");
 
     cv::Mat reconstructed =
-        cv::imread("OUT/PTI2.png");
+        cv::imread("OUT/PTI1 CP.png");
 
     if (
         original.empty() ||
