@@ -44,7 +44,7 @@ flowchart TD
         J --> K
         K -- Zone 1: Training Data --> L[Rabin-Karp Segment Search]
         L --> M[Extend Match Fwd/Bwd]
-        K -- Zone 2: Palette Suffix --> N[O(1) Arithmetic BGR Lookup]
+        K -- Zone 2: Palette Suffix --> N["O(1) Arithmetic BGR Lookup"]
         M --> O[Combine & Segment Allocation]
         N --> O
         O --> P[Generate MATCH/image.bin Map File]
