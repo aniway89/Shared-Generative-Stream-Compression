@@ -266,4 +266,4 @@ print(f"Average Space Saving: {(1 - df_comp['Compressed_MB'].sum() / df_comp['Or
 print(f"Average Matching Time: {df_timing['Matching_Time'].mean():.2f} sec")
 print(f"Average Stream Generation Time: {df_timing['Stream_Time'].mean():.4f} sec")
 if df_timing['Recon_Time'].notna().any():
-    print(f"Average Reconstruction Time: {df_timing['Recon_Time'].dropna().mean():.4f} sec")
+    print(f"Average Reconstruction Time: {df_timing['Recon_Time'].dropna().mean():.4f} sec")git 
