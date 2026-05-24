@@ -78,7 +78,7 @@ Compiled from curated domain images and indexed via a high-performance hash map 
 **Zone 2 — Universal Palette Suffix (Non-Indexed)**
 To prevent out-of-memory (OOM) failures that would arise from hashing millions of palette entries, the stream appends all 16,777,216 possible BGR color triplets (adding exactly 48 MB). Because the palette follows a fixed mathematical order, the offset for any unmatched BGR pixel is computed in O(1) time:
 
-$$\text{offset} = \text{palette\_start} + (B \times 65536 + G \times 256 + R) \times 3$$
+$$\texttt{offset} = \texttt{palette\\_start} + (B \times 65536 + G \times 256 + R) \times 3$$
 
 ### 2. Generative Data Streaming
 
